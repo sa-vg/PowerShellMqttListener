@@ -14,7 +14,7 @@ namespace PowerShellMqtt.Listener
     public class StartMqttListener : Cmdlet
     {
         private static readonly TimeSpan StopSignalWaitingTimeout = TimeSpan.FromSeconds(0.2);
-        
+
         [ValidateNotNullOrEmpty]
         [Parameter(HelpMessage = "Client_Id")]
         public string ClientId { get; set; }
@@ -38,26 +38,29 @@ namespace PowerShellMqtt.Listener
         [ValidateNotNullOrEmpty]
         [Parameter(HelpMessage = "Password")]
         public string Password { get; set; }
-        
+
         [ValidateNotNullOrEmpty]
         [Parameter(Mandatory = true, ParameterSetName = "WebSocketServer")]
         public string Uri { get; set; }
-        
+
         [ValidateNotNullOrEmpty]
         [Parameter(Mandatory = true, ParameterSetName = "WebSocketServer")]
         public IDictionary<string, string> RequestHeaders { get; set; }
-        
+
         [Parameter] public SwitchParameter CleanSession { get; set; }
 
         [Parameter] public SwitchParameter OnlyPayload { get; set; }
-        
+
         protected override void ProcessRecord()
         {
-            var options = BuildClientOptions();
-            using var listener = StartListener(options);
-            
             try
             {
+                var options = BuildClientOptions();
+                
+                using var listener = new Listener();
+                
+                Connect(listener, options);
+                
                 foreach (var topic in Topic)
                 {
                     Subscribe(listener, topic);
@@ -77,14 +80,14 @@ namespace PowerShellMqtt.Listener
             while (true)
             {
                 CheckStopping();
-                
+
                 if (messages.TryTake(out var message, StopSignalWaitingTimeout))
                 {
                     CheckStopping();
                     ProcessMessage(message);
                 }
             }
-            
+
             void ProcessMessage(MqttApplicationMessage message)
             {
                 WriteVerbose($"Message received: {DateTime.Now} Topic: {message.Topic} Payload: {message.ConvertPayloadToString()}");
@@ -98,7 +101,7 @@ namespace PowerShellMqtt.Listener
                     WriteObject(message);
                 }
             }
-            
+
             void CheckStopping()
             {
                 if (Stopping)
@@ -112,11 +115,12 @@ namespace PowerShellMqtt.Listener
         private MqttClientOptionsBuilder BuildConnectionOptions()
         {
             var mqttClientOptionsBuilder = new MqttClientOptionsBuilder();
-            if (RequestHeaders.Any())
+            if (Uri != null && RequestHeaders != null && RequestHeaders.Any())
             {
-                return  mqttClientOptionsBuilder.WithWebSocketServer(BuildWebSocketServerOptions);
+                return mqttClientOptionsBuilder.WithWebSocketServer(BuildWebSocketServerOptions);
             }
-            return  mqttClientOptionsBuilder.WithTcpServer(BuildTcpServerOptions);
+
+            return mqttClientOptionsBuilder.WithTcpServer(BuildTcpServerOptions);
         }
 
         private void BuildWebSocketServerOptions(MqttClientWebSocketOptions x)
@@ -162,14 +166,13 @@ namespace PowerShellMqtt.Listener
             }
         }
 
-        private Listener StartListener(IMqttClientOptions options)
+        private void Connect(Listener listener, IMqttClientOptions options)
         {
             try
             {
                 WriteVerbose($"Starting client with Id: {ClientId}");
-                var startedClient = Listener.Start(options);
+                listener.Connect(options);
                 WriteVerbose($"Started client with Id: {ClientId}");
-                return startedClient;
             }
             catch (Exception exception)
             {

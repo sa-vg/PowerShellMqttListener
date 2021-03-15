@@ -18,21 +18,14 @@ namespace PowerShellMqtt.Listener
         public BlockingCollection<MqttApplicationMessage> Inbox { get; } = new();
         private readonly IManagedMqttClient _client;
 
-        private Listener()
+        public Listener()
         {
             _client = new MqttFactory().CreateManagedMqttClient();
             _client.ConnectedHandler = new MqttClientConnectedHandlerDelegate(OnSubscriberConnected);
             _client.DisconnectedHandler = new MqttClientDisconnectedHandlerDelegate(OnSubscriberDisconnected);
             _client.ApplicationMessageReceivedHandler = new MqttApplicationMessageReceivedHandlerDelegate(OnSubscriberMessageReceived);
         }
-
-        public static Listener Start(IMqttClientOptions options)
-        {
-            var client = new Listener();
-            client.Connect(options);
-            return client;
-        }
-
+        
         public void Subscribe(string topic)
         {
             var topicFilter = new MqttTopicFilter
@@ -43,7 +36,7 @@ namespace PowerShellMqtt.Listener
             _client.SubscribeAsync(topicFilter).GetAwaiter().GetResult();
         }
 
-        private void Connect(IMqttClientOptions options)
+        public void Connect(IMqttClientOptions options)
         {
             _client.StartAsync(new ManagedMqttClientOptions {ClientOptions = options}).GetAwaiter().GetResult();
             if (!_connectConfirmation.WaitOne(ConnectionTimeout))
