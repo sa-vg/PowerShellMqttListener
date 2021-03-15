@@ -15,4 +15,11 @@
         <PackageReference Include="MQTTnet" Version="3.0.15" />
         <PackageReference Include="MQTTnet.Extensions.ManagedClient" Version="3.0.15" />
     </ItemGroup>
+    
+    <ItemGroup>
+        <Dlls Include="$(TargetDir)*.dll" />
+    </ItemGroup>
+    <Target Name="Copy Dlls" AfterTargets="Build">
+        <Copy SourceFiles="@(Dlls)" DestinationFolder="$(SolutionDir)\PowerShellMqtt\" />
+    </Target>
 </Project>
