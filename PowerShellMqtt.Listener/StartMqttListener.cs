@@ -196,7 +196,7 @@ namespace PowerShellMqtt.Listener
         {
             try
             {
-                var listener = Listener.Create();
+                var listener = new Listener();
                 WriteVerbose($"Starting client with Id: {ClientId}");
                 listener.Connect(options);
                 WriteVerbose($"Started client with Id: {ClientId}");
