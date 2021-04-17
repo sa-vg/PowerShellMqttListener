@@ -45,21 +45,31 @@ namespace PowerShellMqtt.Listener
 
         [ValidateNotNullOrEmpty]
         [Parameter(Mandatory = true, ParameterSetName = "WebSocketServer")]
-        public IDictionary<string, string> RequestHeaders { get; set; }
+        public Dictionary<string, string> RequestHeaders { get; set; }
 
-        [Parameter] public SwitchParameter CleanSession { get; set; }
+        [Parameter] 
+        public SwitchParameter CleanSession { get; set; }
 
-        [Parameter] public SwitchParameter OnlyPayload { get; set; }
-
+        [Parameter] 
+        public SwitchParameter OnlyPayload { get; set; }
+        
+        [Parameter] 
+        public SwitchParameter UseTls { get; set; }
+        
+        [Parameter] 
+        public SwitchParameter AllowUntrustedCertificates { get; set; }
+        [Parameter] 
+        public SwitchParameter IgnoreCertificateChainErrors { get; set; }
+        [Parameter] 
+        public SwitchParameter IgnoreCertificateRevocationErrors { get; set; }
+        
         protected override void ProcessRecord()
         {
             try
             {
                 var options = BuildClientOptions();
                 
-                using var listener = new Listener();
-                
-                Connect(listener, options);
+                var listener = Connect(options);
                 
                 foreach (var topic in Topic)
                 {
@@ -126,25 +136,41 @@ namespace PowerShellMqtt.Listener
         private void BuildWebSocketServerOptions(MqttClientWebSocketOptions x)
         {
             x.Uri = Uri;
-            x.CookieContainer = new CookieContainer();
             x.RequestHeaders = RequestHeaders;
+            x.TlsOptions = GetTlsOptions();
         }
 
         private void BuildTcpServerOptions(MqttClientTcpOptions x)
         {
             x.Server = Server;
             x.Port = Port;
-            x.TlsOptions = new MqttClientTlsOptions {UseTls = false, IgnoreCertificateChainErrors = true, IgnoreCertificateRevocationErrors = true, AllowUntrustedCertificates = true};
+            x.TlsOptions = GetTlsOptions();
+        }
+
+        private MqttClientTlsOptions GetTlsOptions()
+        {
+            return new()
+            {
+                UseTls = UseTls,
+                IgnoreCertificateChainErrors = IgnoreCertificateChainErrors,
+                IgnoreCertificateRevocationErrors = IgnoreCertificateRevocationErrors,
+                AllowUntrustedCertificates = AllowUntrustedCertificates
+            };
         }
 
         private IMqttClientOptions BuildClientOptions()
         {
-            var options = BuildConnectionOptions()
+            var optionsBuilder = BuildConnectionOptions()
                 .WithClientId(ClientId)
                 .WithCleanSession(CleanSession)
-                .WithProtocolVersion(MqttProtocolVersion.V311)
-                .WithCredentials(Username, Password)
-                .WithKeepAlivePeriod(TimeSpan.FromSeconds(5))
+                .WithProtocolVersion(MqttProtocolVersion.V500);
+
+            if (!string.IsNullOrEmpty(Password) && !string.IsNullOrEmpty(Username))
+            {
+                optionsBuilder = optionsBuilder.WithCredentials(Username, Password);
+            }
+            
+            var options = optionsBuilder
                 .Build();
 
             return options;
@@ -166,13 +192,15 @@ namespace PowerShellMqtt.Listener
             }
         }
 
-        private void Connect(Listener listener, IMqttClientOptions options)
+        private Listener Connect(IMqttClientOptions options)
         {
             try
             {
+                var listener = Listener.Create();
                 WriteVerbose($"Starting client with Id: {ClientId}");
                 listener.Connect(options);
                 WriteVerbose($"Started client with Id: {ClientId}");
+                return listener;
             }
             catch (Exception exception)
             {
